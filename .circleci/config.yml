@@ -2,6 +2,7 @@ version: 2.1
 
 orbs:
   stoplight: stoplight/cli@0.0.2
+  windows: circleci/windows@2.4.0
 
 commands:
   cached-dependencies:
@@ -19,22 +20,27 @@ commands:
           paths:
             - ~/.cache/yarn
 
-  install-and-test:
+  install-and-build:
     description: >-
       Install everything required to run the test suite, then run it.
     steps:
       - checkout
       - cached-dependencies
-      - run: yarn
       - run:
           name: Build the code
           command: yarn build
+
+  test-node:
+    steps:
       - run:
-          name: Run browser tests
-          command: yarn test.karma
+          name: Lint the code
+          command: yarn lint
       - run:
           name: Run node tests
           command: yarn test --coverage --maxWorkers=2
+
+  test-harness:
+    steps:
       - run:
           name: Create the Spectral Binary
           command: yarn build.binary
@@ -44,32 +50,14 @@ commands:
       - run:
           name: Run harness tests
           command: yarn test.harness
+
+  test-browser:
+    steps:
       - run:
-          name: Lint the code
-          command: yarn lint
+          name: Run browser tests
+          command: yarn test.karma
 
-jobs:
-  test-node-latest:
-    docker:
-      - image: circleci/node:latest-browsers
-    steps:
-      - install-and-test
-
-  test-node-12:
-    docker:
-      - image: circleci/node:12-browsers
-    steps:
-      - install-and-test
-
-  test-node-10:
-    docker:
-      - image: circleci/node:10-browsers
-    steps:
-      - install-and-test
-
-  release:
-    docker:
-      - image: circleci/node:10
+  prepare-release:
     steps:
       - checkout
       - cached-dependencies
@@ -77,6 +65,59 @@ jobs:
       - run: npm version from-git
       - run: yarn inline-version
       - run: yarn build
+
+jobs:
+  test-windows:
+    executor:
+      name: windows/default
+    steps:
+      - install-and-build
+      - test-node
+      - test-harness
+
+  test-node-latest:
+    docker:
+      - image: circleci/node:latest-browsers
+    steps:
+      - install-and-build
+      - test-node
+      - test-harness
+      - test-browser
+
+  test-node-12:
+    docker:
+      - image: circleci/node:12-browsers
+    steps:
+      - install-and-build
+      - test-node
+      - test-harness
+      - test-browser
+
+  test-node-10:
+    docker:
+      - image: circleci/node:10-browsers
+    steps:
+      - install-and-build
+      - test-node
+      - test-harness
+      - test-browser
+
+  build-windows-binary:
+    executor:
+      name: windows/default
+    steps:
+      - prepare-release
+      - run: npx pkg . --targets windows --out-path ./binaries
+      - persist_to_workspace:
+          root: ./
+          paths:
+            - binaries
+
+  release:
+    docker:
+      - image: circleci/node:12
+    steps:
+      - prepare-release
       - run: |
           if [[ "$CIRCLE_TAG" == *beta* ]] ; then
             npm publish --tag beta
@@ -110,6 +151,7 @@ workflows:
       - test-node-latest
       - test-node-12
       - test-node-10
+      - test-windows
   release:
     jobs:
       - release:
