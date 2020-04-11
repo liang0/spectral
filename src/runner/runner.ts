@@ -6,6 +6,7 @@ import { Rule } from '../rule';
 import { IRuleResult } from '../types';
 import { generateDocumentWideResult } from '../utils/generateDocumentWideResult';
 import { lintNode } from './lintNode';
+import { traverse, TraverseCallback } from './traverse';
 import { IRunnerInternalContext, IRunnerPublicContext } from './types';
 import { IExceptionLocation, pivotExceptions } from './utils/pivotExceptions';
 
@@ -44,7 +45,35 @@ export const runRules = async (context: IRunnerPublicContext): Promise<IRuleResu
     rule => rule.enabled && rule.matchesFormat(documentInventory.formats),
   );
 
+  const optimizedRules: OptimizedRule[] = [];
+  const optimizedUnresolvedRules: OptimizedRule[] = [];
+  const unoptimizedRules: Rule[] = [];
+
   for (const rule of relevantRules) {
+    if (!(rule instanceof OptimizedRule)) {
+      unoptimizedRules.push(rule);
+    } else if (rule.resolved) {
+      rule.completed = false;
+      optimizedRules.push(rule);
+    } else {
+      rule.completed = false;
+      optimizedUnresolvedRules.push(rule);
+    }
+  }
+
+  const traverseCb: TraverseCallback = (rule, node) => {
+    lintNode(runnerContext, node, rule, exceptRuleByLocations[rule.name]);
+  };
+
+  if (optimizedRules.length > 0) {
+    traverse(Object(runnerContext.documentInventory.resolved), optimizedRules, traverseCb);
+  }
+
+  if (optimizedUnresolvedRules.length > 0) {
+    traverse(Object(runnerContext.documentInventory.unresolved), optimizedUnresolvedRules, traverseCb);
+  }
+
+  for (const rule of unoptimizedRules) {
     try {
       runRule(runnerContext, rule, exceptRuleByLocations[rule.name]);
     } catch (ex) {
