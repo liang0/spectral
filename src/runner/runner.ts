@@ -2,15 +2,15 @@ import { DiagnosticSeverity, Optional } from '@stoplight/types';
 import { JSONPathCallback } from 'jsonpath-plus';
 import { STDIN } from '../document';
 import { DocumentInventory } from '../documentInventory';
-import { Rule } from '../rule';
-import { IRuleResult } from '../types';
+import { IGivenNode, IRuleResult } from '../types';
 import { generateDocumentWideResult } from '../utils/generateDocumentWideResult';
-import { lintNode } from './lintNode';
-import { traverse, TraverseCallback } from './traverse';
+import { lintNode } from './linter';
+import { OptimizedRule, Rule } from './rule';
 import { IRunnerInternalContext, IRunnerPublicContext } from './types';
 import { IExceptionLocation, pivotExceptions } from './utils/pivotExceptions';
 
 const { JSONPath } = require('jsonpath-plus');
+const { traverse } = require('nimma');
 
 const isStdInSource = (inventory: DocumentInventory): boolean => {
   return inventory.document.source === STDIN;
@@ -49,21 +49,24 @@ export const runRules = async (context: IRunnerPublicContext): Promise<IRuleResu
   const optimizedUnresolvedRules: OptimizedRule[] = [];
   const unoptimizedRules: Rule[] = [];
 
+  const traverseCb = (rule: OptimizedRule, node: IGivenNode) => {
+    lintNode(runnerContext, node, rule, exceptRuleByLocations[rule.name]);
+  };
+
   for (const rule of relevantRules) {
     if (!(rule instanceof OptimizedRule)) {
       unoptimizedRules.push(rule);
-    } else if (rule.resolved) {
-      rule.completed = false;
+      continue;
+    }
+
+    if (rule.resolved) {
       optimizedRules.push(rule);
     } else {
-      rule.completed = false;
       optimizedUnresolvedRules.push(rule);
     }
-  }
 
-  const traverseCb: TraverseCallback = (rule, node) => {
-    lintNode(runnerContext, node, rule, exceptRuleByLocations[rule.name]);
-  };
+    rule.hookup(traverseCb);
+  }
 
   if (optimizedRules.length > 0) {
     traverse(Object(runnerContext.documentInventory.resolved), optimizedRules, traverseCb);
