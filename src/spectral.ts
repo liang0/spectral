@@ -48,7 +48,7 @@ export class Spectral {
 
   private readonly _computeFingerprint: ComputeFingerprintFunc;
 
-  constructor(opts?: IConstructorOpts) {
+  constructor(protected readonly opts?: IConstructorOpts) {
     this._computeFingerprint = memoize(opts?.computeFingerprint || defaultComputeResultFingerprint);
     this._resolver = opts?.resolver || new Resolver();
     this.formats = {};
@@ -127,9 +127,13 @@ export class Spectral {
     empty(this.rules);
 
     for (const [name, rule] of Object.entries(rules)) {
-      try {
-        this.rules[name] = new OptimizedRule(name, rule);
-      } catch {
+      if (this.opts?.useNimma) {
+        try {
+          this.rules[name] = new OptimizedRule(name, rule);
+        } catch {
+          this.rules[name] = new Rule(name, rule);
+        }
+      } else {
         this.rules[name] = new Rule(name, rule);
       }
     }
