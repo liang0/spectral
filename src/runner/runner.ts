@@ -1,16 +1,18 @@
 import { DiagnosticSeverity, Optional } from '@stoplight/types';
 import { JSONPathCallback } from 'jsonpath-plus';
+import { flatMap } from 'lodash';
+import { JSONPathExpression, traverse } from 'nimma';
+
 import { STDIN } from '../document';
 import { DocumentInventory } from '../documentInventory';
 import { IGivenNode, IRuleResult } from '../types';
 import { generateDocumentWideResult } from '../utils/generateDocumentWideResult';
 import { lintNode } from './linter';
-import { OptimizedRule, Rule } from './rule';
+import { OptimizedRule, Rule } from '../rule';
 import { IRunnerInternalContext, IRunnerPublicContext } from './types';
 import { IExceptionLocation, pivotExceptions } from './utils/pivotExceptions';
 
 const { JSONPath } = require('jsonpath-plus');
-const { traverse } = require('nimma');
 
 const isStdInSource = (inventory: DocumentInventory): boolean => {
   return inventory.document.source === STDIN;
@@ -69,11 +71,11 @@ export const runRules = async (context: IRunnerPublicContext): Promise<IRuleResu
   }
 
   if (optimizedRules.length > 0) {
-    traverse(Object(runnerContext.documentInventory.resolved), optimizedRules, traverseCb);
+    traverse(Object(runnerContext.documentInventory.resolved), flatMap(optimizedRules, pickExpressions));
   }
 
   if (optimizedUnresolvedRules.length > 0) {
-    traverse(Object(runnerContext.documentInventory.unresolved), optimizedUnresolvedRules, traverseCb);
+    traverse(Object(runnerContext.documentInventory.unresolved), flatMap(optimizedUnresolvedRules, pickExpressions));
   }
 
   for (const rule of unoptimizedRules) {
@@ -130,3 +132,7 @@ const runRule = (
     }
   }
 };
+
+function pickExpressions({ expressions }: OptimizedRule): JSONPathExpression[] {
+  return expressions;
+}
