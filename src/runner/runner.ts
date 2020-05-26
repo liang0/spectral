@@ -5,10 +5,10 @@ import { JSONPathExpression, traverse } from 'nimma';
 
 import { STDIN } from '../document';
 import { DocumentInventory } from '../documentInventory';
+import { OptimizedRule, Rule } from '../rule';
 import { IGivenNode, IRuleResult } from '../types';
 import { generateDocumentWideResult } from '../utils/generateDocumentWideResult';
 import { lintNode } from './linter';
-import { OptimizedRule, Rule } from '../rule';
 import { IRunnerInternalContext, IRunnerPublicContext } from './types';
 import { IExceptionLocation, pivotExceptions } from './utils/pivotExceptions';
 
